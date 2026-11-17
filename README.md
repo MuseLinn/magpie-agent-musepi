@@ -72,5 +72,5 @@ Neither is needed to install it: `magpie plugin add github:MuseLinn/magpie-agent
 works regardless. Published on npm too:
 
 ```sh
-magpie plugin add magpie-agent-musepi
+magpie plugin add npm:@musepi/magpie-agent-musepi
 ```

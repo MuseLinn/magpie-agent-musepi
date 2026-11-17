@@ -1,5 +1,5 @@
 {
-  "name": "magpie-agent-musepi",
+  "name": "@musepi/magpie-agent-musepi",
   "version": "0.1.0",
   "description": "MusePi (musepi) as a magpie agent: pick one of magpie's models for it on the Agents page",
   "type": "module",
@@ -34,5 +34,8 @@
   "bugs": {
     "url": "https://github.com/MuseLinn/magpie-agent-musepi/issues"
   },
-  "author": "MuseLinn"
+  "author": "MuseLinn",
+  "publishConfig": {
+    "access": "public"
+  }
 }
