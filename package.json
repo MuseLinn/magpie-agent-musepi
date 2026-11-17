@@ -1,0 +1,19 @@
+{
+  "name": "magpie-agent-musepi",
+  "version": "0.1.0",
+  "description": "MusePi (musepi) as a magpie agent: pick one of magpie's models for it on the Agents page",
+  "type": "module",
+  "files": ["musepi.agent.js", "README.md"],
+  "scripts": {
+    "test": "node --test \"test/*.test.mjs\""
+  },
+  "keywords": ["magpie", "magpie-agent", "musepi", "llm-gateway"],
+  "license": "MIT",
+  "magpie": {
+    "agent": "./musepi.agent.js",
+    "summary": {
+      "en": "MusePi on magpie's Agents page: pick one of magpie's models for it, and switch it off to put its config back.",
+      "zh": "把 MusePi 加到 magpie 的 Agent 页：给它选 magpie 的模型，关掉即恢复原来的配置。"
+    }
+  }
+}
