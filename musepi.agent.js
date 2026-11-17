@@ -9,6 +9,8 @@
 // moves MusePi's files, and agent.config is one fixed path: when one of
 // those is in use magpie writes where MusePi does not look.
 
+import { MUSEPI_ICON } from "./musepi.icon.js";
+
 export const agent = {
 	id: "musepi",
 	name: "MusePi",
@@ -24,8 +26,18 @@ export const agent = {
 	},
 	prefix: "magpie/",
 	ua: ["musepi"],
-	notice:
-		"MusePi reads models.yml and config.yml when a session starts: start a new session to use the new model. Only the default folder (~/.musepi/agent) is wired; a named profile, PI_CONFIG_DIR or XDG data root is not.",
+	// Gives the row magpie's effort field. MusePi keeps its own thinking
+	// level per session (including its `auto`), so this is magpie asking the
+	// gateway for a level on the way out — it writes nothing to MusePi's files
+	// and does not touch a session's own pick.
+	effort: true,
+	// magpie reads this, not package.json's magpie.icon: the latter only
+	// feeds the plugin market card.
+	icon: MUSEPI_ICON,
+	// Shown after every change. Keep it to what the person must do next: the
+	// folder caveat is a standing limitation, so it belongs in the README, not
+	// in a toast that reads like a failure.
+	notice: "Start a new MusePi session to use the new model.",
 };
 
 /** MusePi's cost, from magpie's pricing: USD a token, as decimal strings. */

@@ -47,6 +47,10 @@ agent.
 - **A failing model may fall back silently.** MusePi resolves an unavailable
   model to another one it can reach, so a reply can arrive from a model you
   did not pick. Check magpie's Usage page when a model's answer looks wrong.
+- **Thinking level.** magpie's row offers a thinking level (none → max) that
+  magpie asks the gateway for on the way out; it writes nothing to MusePi's
+  files. MusePi's own per-session level, including its `auto`, stays yours and
+  is not overridden by this field.
 - **Thinking signatures.** Each model is written with the API magpie relays
   it on (`anthropic-messages`, `openai-responses`, or `openai-completions`).
   A model relayed only on Chat cannot carry Claude's thinking between tool

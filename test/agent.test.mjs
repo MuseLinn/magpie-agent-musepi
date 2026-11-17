@@ -34,12 +34,28 @@ test("the module exports connect", () => {
 	assert.equal(typeof connect, "function");
 });
 
-test("the module imports nothing (moejs has no Node)", async () => {
+test("the module imports only its own files (jsmod allows nothing else)", async () => {
 	const { readFile } = await import("node:fs/promises");
 	const src = await readFile(new URL("../musepi.agent.js", import.meta.url), "utf8");
-	assert.equal(/^\s*import\s/m.test(src), false, "musepi.agent.js must not import anything");
+	const specs = [...src.matchAll(/^\s*import\s[^"']*["']([^"']+)["']/gm)].map(m => m[1]);
+	for (const spec of specs) {
+		assert.match(spec, /^\.\//, `import ${spec}: magpie imports only files beside the module`);
+	}
 });
 
-test("the notice names the folder limit", () => {
-	assert.match(agent.notice, /default folder/i);
+test("the agent carries an icon magpie can show", () => {
+	assert.match(agent.icon, /^data:image\/png;base64,/);
+	assert.ok(agent.icon.length > 1000, "the icon is the rendered PNG, not a placeholder");
+});
+
+test("the notice says what to do next and nothing more", () => {
+	assert.match(agent.notice, /new .*session/i);
+	// The folder caveat is a standing limitation; a toast carrying it reads as
+	// a failure on every model change.
+	assert.doesNotMatch(agent.notice, /XDG|PI_CONFIG_DIR|profile/i);
+	assert.ok(agent.notice.length < 90);
+});
+
+test("the row offers magpie's thinking level", () => {
+	assert.equal(agent.effort, true);
 });
