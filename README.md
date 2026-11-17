@@ -8,7 +8,7 @@ pick one of magpie's models for it, and switch it off to put its config back.
 ## Install
 
 ```sh
-magpie plugin add github:<owner>/magpie-agent-musepi
+magpie plugin add github:MuseLinn/magpie-agent-musepi
 ```
 
 Then connect MusePi on magpie's Agents page and pick a model. A new MusePi
@@ -68,5 +68,9 @@ review, sorted by stars). Being in the community's `registry.json`
 (`magpie-community/plugins`) is a further step: it makes the plugin
 installable by short name and suggested as an agent.
 
-Neither is needed to install it: `magpie plugin add github:<owner>/<repo>`
-works regardless.
+Neither is needed to install it: `magpie plugin add github:MuseLinn/magpie-agent-musepi`
+works regardless. Published on npm too:
+
+```sh
+magpie plugin add magpie-agent-musepi
+```
