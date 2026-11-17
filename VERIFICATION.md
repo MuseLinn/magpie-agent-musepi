@@ -1,65 +1,78 @@
 # Verification — 2026-11-17
 
-magpie 0.1.4295 (Windows), MusePi working tree at `D4350ebc7`.
+magpie 0.1.4295 (Windows), MusePi 0.7.6 (repo HEAD `4350ebc7`).
 
-## Setup
+## Unit tests
 
-Isolated `USERPROFILE=C:\Users\universe\AppData\Local\Temp\mv1\home` with no
-`.musepi` present. magpie's own config copied in, plugins list emptied.
+`node --test "test/*.test.mjs"` — 15 pass, 0 fail.
+
+## Sandbox run (fresh `USERPROFILE`, no `.musepi`)
 
 > Windows only: `appdir.Home()` reads `USERPROFILE`, not `HOME`
-> (`internal/appdir/env.go:17-22`). A sandbox must set `USERPROFILE`.
-
-## Steps and results
+> (`internal/appdir/env.go:17-22`). A sandbox must set `USERPROFILE`, or the
+> plugin lands in the real magpie config.
 
 | Step | Result |
 |---|---|
-| `magpie plugin add D:\Projects\Agents\magpie-agent-musepi` | plugin listed, on |
-| `magpie agents` | `MusePi  not detected` — see finding 1 |
-| `magpie musepi model magpie/copilot/auto` | `✓ MusePi model magpie/copilot/auto` |
-| `models.yml` written | `providers.magpie` with `baseUrl`, `apiKey`, `models[]` |
-| `config.yml` written | `modelRoles: { default: magpie/copilot/auto }` |
-| `.musepi/agent` auto-created | yes (the folder did not exist) |
-| MusePi `getModelsConfigSchema()` | **VALID** |
-| `modelRoles.default` → written id | **match** (`magpie/copilot/auto` → `copilot/auto`) |
-| `magpie musepi model ""` (disconnect) | `providers: {}` / `modelRoles: {}` |
-| unit tests `node --test` | 15 pass, 0 fail |
+| `magpie plugin add <repo>` | listed, on |
+| `magpie agents` | `MusePi  not detected` (no `musepi` on PATH) |
+| `magpie musepi model magpie/copilot/auto` | written |
+| `.musepi/agent` auto-created | yes |
+| `models.yml` / `config.yml` | correct shapes |
+| MusePi `getModelsConfigSchema()` | VALID |
+| `modelRoles.default` → written id | match |
+| disconnect | `providers: {}` / `modelRoles: {}` |
 
-Written shape:
+## Real run (MusePi session through magpie)
 
-```yaml
-providers:
-  magpie:
-    # magpie: points at magpie's local gateway; …
-    baseUrl: http://127.0.0.1:3425
-    apiKey: magpie-musepi
-    models:
-      - id: copilot/auto
-        name: auto · Copilot
-        api: anthropic-messages
+`magpie musepi model magpie/codex/gpt-6-luna`, then
+`bun --cwd=packages/coding-agent src/cli.ts -p "输出你的模型全名"`.
+
+The model answered **`magpie/codex/gpt-6-luna`**. magpie's usage log:
+
+```
+model=gpt-6-luna  ep=/responses  status=200  in=51478  out=214  reasoning=197
 ```
 
-## Findings
+That confirms three things at once:
 
-1. **`bin: "musepi"` is not on PATH here**, so magpie shows the agent as
-   `not detected`. The row still works: connecting writes both files. On a
-   machine where MusePi is installed as a command (`musepi` on PATH, or
-   `~/.musepi` present) the row reads as detected. This is the design's open
-   question 6, answered: detection is cosmetic for wiring, not a gate.
+- **`modelRoles.default` is read**: MusePi resolved the ref and started on it.
+- **`api` maps correctly**: the turn went to `/responses`, matching the
+  `api: openai-responses` written for that model.
+- **Thinking survives**: `reasoning=197` — the reasoning payload crossed the
+  gateway intact.
 
-2. **`api` follows the model's native endpoints.** `copilot/auto` relays on
-   Anthropic Messages, so the written entry says `api: anthropic-messages`
-   rather than the Chat default. The mapping runs per model, as designed.
+## Defect found: disconnecting deletes the user's `default` role
 
-3. **The catalog is whatever magpie has.** The sandbox had one model
-   (`copilot/auto`) and one was written. Nothing is dropped or invented.
+Reproduced on the real machine. Before connecting, `~/.musepi/agent/config.yml`
+had:
 
-4. **Disconnect leaves empty tables**, not deletions: `providers: {}` and
-   `modelRoles: {}`. Matches the design's finding 5; magpie's own behaviour
-   for every agent.
+```yaml
+modelRoles:
+  default: agnes/agnes-3.0-flash
+  smol: …
+  slow: …
+```
 
-## Not verified here
+After connect → disconnect, `default` was **gone**; the other roles were
+untouched.
 
-- A real MusePi session reading `modelRoles.default` and sending a turn
-  through the gateway: needs a MusePi run, which this sandbox does not have.
-- Thinking-signature preservation on a Claude model end to end: same reason.
+Cause: `agent.connect()` stashes `a.Values()` under `<id>.connect.was`
+(`internal/agent/applied.go:753-755`). For a plugin agent with `startup` and
+no `model`, `Values()` has no model entry, so the stash records only
+`{"model": "agnes/agnes-3.0-flash"}` — a key that never existed. The startup
+file's own stash (`plugin:musepi:<path>`) is written, but
+`connect.was`'s restore path then removes the model role.
+
+Workaround recorded in `README.md`? No — this needs a magpie fix or a
+different plugin shape (`model` instead of `startup`, which cannot express
+MusePi's split files).
+
+Until fixed: back up `modelRoles.default` before connecting, or restore it by
+hand after disconnecting.
+
+## Not verified
+
+- Thinking signatures across a multi-turn tool-calling session (one turn was
+  enough to prove reasoning crosses the gateway; tool-turn signature reuse
+  was not exercised).

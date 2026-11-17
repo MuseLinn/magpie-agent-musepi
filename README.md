@@ -37,11 +37,21 @@ agent.
   MusePi's files; magpie's `agent.config` is one fixed path, so it would
   write where MusePi does not look. Start MusePi on its default folder, or
   wait for the multi-folder support.
+- **Back up `modelRoles.default` before connecting (magpie 0.1.4295).**
+  Disconnecting removes that role instead of restoring it: magpie's
+  `connect.was` stash records a `model` key that a `startup` agent does not
+  have. The other roles are untouched. Verified 2026-11-17; see
+  `VERIFICATION.md`.
 - **The model list is magpie's.** MusePi shows what magpie's catalog had
   when the agent last connected; re-pick a model after adding a provider.
+- **A failing model may fall back silently.** MusePi resolves an unavailable
+  model to another one it can reach, so a reply can arrive from a model you
+  did not pick. Check magpie's Usage page when a model's answer looks wrong.
 - **Thinking signatures.** Each model is written with the API magpie relays
-  it on (`anthropic-messages`, `openai-responses`, or `openai-completions`),
-  so a Claude model keeps its thinking across tool turns.
+  it on (`anthropic-messages`, `openai-responses`, or `openai-completions`).
+  A model relayed only on Chat cannot carry Claude's thinking between tool
+  turns; magpie reports `native_endpoints` per model and this plugin follows
+  them.
 
 ## Develop
 
