@@ -49,8 +49,13 @@ test("the module imports only its own files (jsmod allows nothing else)", async 
 });
 
 test("the agent carries an icon magpie can show", () => {
-	assert.match(agent.icon, /^data:image\/png;base64,/);
-	assert.ok(agent.icon.length > 1000, "the icon is the rendered PNG, not a placeholder");
+	// magpie decodes a data:image URI with strict base64; a repeated prefix
+	// leaves it with bytes that are not the picture, and the icon is dropped.
+	const match = agent.icon.match(/^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/);
+	assert.ok(match, "one data URI prefix, then base64 only");
+	const png = Buffer.from(match[1], "base64");
+	assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+	assert.ok(png.length > 1000, "the icon is the rendered PNG, not a placeholder");
 });
 
 test("the notice says what to do next and nothing more", () => {

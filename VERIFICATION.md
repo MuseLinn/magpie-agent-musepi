@@ -115,3 +115,18 @@ Not written, and why:
   `input_modalities`.
 - **Image generation.** `connect` lists chat models only; image models are
   `gateway.ImageModels()`, and MusePi's `models.yml` has no image API.
+
+## Verification — 2026-11-19 (the agent's own icon was dropped)
+
+`musepi.agent.js` carried the picture as
+`data:image/png;base64,data:image/png;base64,iVBOR…` — the URI prefix written
+twice, already published in 0.1.2. magpie's `pluginOwnIcon`
+(`internal/provider/plugin_icon.go:127-134`) hands everything after `data:`
+to `dataURI`, which decodes the payload with strict base64; the second
+`data:image/png;base64,` is not base64, so `StoreIcon` never sees a picture
+and the agent's icon is dropped. The row still showed one because magpie
+then falls back to `package.json`'s `magpie.icon`, whose prefix is single.
+
+The test only matched the prefix and the length, so it passed either way. It
+now decodes the payload and checks the PNG signature, which fails on a
+repeated prefix.
