@@ -76,3 +76,42 @@ hand after disconnecting.
 - Thinking signatures across a multi-turn tool-calling session (one turn was
   enough to prove reasoning crosses the gateway; tool-turn signature reuse
   was not exercised).
+
+## Verification — 2026-11-18 (model facts MusePi can use)
+
+MusePi's model entry takes four facts the plugin had not written, and one it
+wrote in the wrong unit. Verified against MusePi's own schema and registry on
+this machine, not by reading code alone:
+
+| Check | Result |
+|---|---|
+| `node --test "test/*.test.mjs"` | 31 pass, 0 fail |
+| `getModelsConfigSchema().assert()` on the written `providers.magpie` | VALID |
+| `own()` over a `models.yml` with one labeled provider | `provider/id` picks, `direct` = the label, the `magpie` provider left out |
+| `modelRoles.default` set to one of those picks | resolves through MusePi's `resolveModelRoleValue` to `provider/id` |
+| `providers.<id>.label` read back | `getProviderLabel` returns it, `find()` still keys on the id |
+| `ModelRegistry` over the written file: `pricing.prompt: "0.00000015"` | `cost.input: 0.15` (USD per million) |
+| A model with `images: true` | `input: ["text", "image"]` |
+| A model with `native_endpoints: ["/v1/responses"]` | `api: openai-responses`, `baseUrl: <gateway>/v1` |
+| A Chat model with `efforts: ["low", "medium", "high"]` | `reasoning: true`, `thinking: { mode: "effort", efforts: [...] }` |
+| An Anthropic model with the same efforts | `reasoning: true`, no pinned `thinking.mode` (MusePi keeps its id-based adaptive/budget choice) |
+
+The cost unit was the defect: magpie hands out USD a token (OpenRouter's
+shape), MusePi prices a million (`calculateCost` divides by 1e6). Writing one
+as the other made every magpie call cost 1e-6 of its real price in MusePi's
+usage view. `toCost` now scales and drops float noise (`1.5e-7` → `0.15`).
+
+Responses was the second: MusePi appends `/responses` to the model's base URL
+and magpie serves it at `/v1/responses` only. Chat survives on magpie's
+`/chat/completions` root alias and Messages on MusePi's own `/v1/messages`
+tail, so only Responses needs the `/v1` base.
+
+Not written, and why:
+
+- **Video input.** magpie's `catalog.Model.InputModalities` can say `video`
+  (`zcodeInputs` reads it), but the plugin facts carry only `images`.
+  Models.yml's `input`, once written, overrides MusePi's id-based inference, so
+  a video model keeps that inference until upstream exposes
+  `input_modalities`.
+- **Image generation.** `connect` lists chat models only; image models are
+  `gateway.ImageModels()`, and MusePi's `models.yml` has no image API.

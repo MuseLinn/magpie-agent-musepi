@@ -38,7 +38,7 @@ B 的"注册 provider"动作本身就会写 `models.yml` 的 `providers.magpie`�
 
 `agentplug` 校验（`agentplug.go:432` `Desc.check`）：`agent.id` 匹配 `^[a-z0-9][a-z0-9._-]{0,63}$`，`bin` 匹配 `^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$`，有 `startup` 时不得再给 `model`，且 `startup.config` 必须与 `config` 不同。
 
-`connect` 拿到的模型字段（`internal/agent/plugged_connect_facts_test.go:45-51`）：`id`、`name`、`context`、`output`、`images`、`efforts`、`pricing`（字符串映射，键 `prompt`/`completion`/`input_cache_read`/`input_cache_write`，USD/token）、`native_endpoints`（如 `["/v1/chat/completions"]`）。
+`connect` 拿到的模型字段（`internal/agent/plugged_connect_facts_test.go:45-51`）：`id`、`name`、`context`、`output`、`images`、`efforts`、`pricing`（字符串映射，键 `prompt`/`completion`/`input_cache_read`/`input_cache_write`，USD/token）、`native_endpoints`（如 `["/v1/chat/completions"]`）。MusePi 的 `cost` 单位是 **USD/百万 token**（`packages/catalog/src/models.ts:97` `calculateCost` 除以 1e6），所以 `pricing` 转 `cost` 必须 ×1e6。
 
 ## MusePi 的配置落点（已核实）
 
@@ -187,7 +187,7 @@ export const agent = {
   prefix: "magpie/",
   ua: ["musepi"],
   notice:
-    "MusePi reads models.yml and config.yml when a session starts: start a new session to use the new model. Only the default folder (~/.musepi/agent) is wired; a named profile, PI_CONFIG_DIR or XDG data root is not.",
+    "Reopen MusePi's model menu, or start a new session, to use the new model.",
 };
 ```
 
@@ -200,31 +200,42 @@ export const agent = {
 
 ```js
 export function connect({ gateway, models }) {
-  const magpie = {
-    baseUrl: gateway.url,              // 网关根地址；MusePi 自己拼 /chat/completions
-    apiKey: gateway.key,               // 实测：回环也给键，不能写 auth: none
-    models: (models ?? []).map(m => ({
-      id: m.id,
-      name: m.name ?? m.id,
-      ...(m.context ? { contextWindow: m.context } : {}),
-      ...(m.output ? { maxTokens: m.output } : {}),
-      ...(m.native_endpoints?.includes("/v1/messages")
-        ? { api: "anthropic-messages" }
-        : m.native_endpoints?.includes("/v1/responses")
-          ? { api: "openai-responses" }
-          : { api: "openai-completions" }),
-      ...(m.pricing ? { cost: toCost(m.pricing) } : {}),
-    })),
-  };
-  return { "providers.magpie": magpie };
+  const list = (models ?? []).map(m => {
+    const entry = { id: m.id, name: m.name ?? m.id, api: apiFor(m.native_endpoints) };
+    if (m.context) entry.contextWindow = m.context;
+    if (m.output) entry.maxTokens = m.output;
+    if (entry.api === "openai-responses") entry.baseUrl = gateway.v1; // /responses 只在网关的 /v1 上
+    if (m.images === true) entry.input = ["text", "image"];
+    const thinking = thinkingFor(entry.api, m.efforts);
+    if (thinking) { entry.reasoning = true; entry.thinking = thinking; }
+    else if (m.efforts?.length) entry.reasoning = true; // Anthropic：mode 交给 MusePi 按 id 选
+    if (m.pricing) entry.cost = toCost(m.pricing);      // USD/token → USD/百万 token
+    return entry;
+  });
+  return { "providers.magpie": { baseUrl: gateway.url, apiKey: gateway.key, ...(list.length ? { models: list } : {}) } };
 }
 ```
 
-`toCost` 把 `pricing` 的字符串转数字，缺失的四个键补 0：`{ input, output, cacheRead, cacheWrite }`。
+`toCost` 把 `pricing` 的字符串转数字、乘以 1e6 写成 MusePi 的 USD/百万 token，缺失的四个键补 0：`{ input, output, cacheRead, cacheWrite }`。不换算会让每次调用少报一百万倍（MusePi 用 `cost.input / 1e6 * tokens` 计价）。
 
 `models` 为空时仍写 `baseUrl` 与 `apiKey`，不写空的 `models` 数组（空数组会让 MusePi 的 provider 没有任何模型，且掩盖真实故障）。
 
-`api` 按 `native_endpoints` 逐模型选择：Claude 类模型走 `anthropic-messages` 才保住 thinking 签名；Responses 类走 `openai-responses`；其余 `openai-completions`。
+`api` 按 `native_endpoints` 逐模型选择：Claude 类模型走 `anthropic-messages` 才保住 thinking 签名；Responses 类走 `openai-responses`；其余 `openai-completions`。Responses 是唯一需要逐模型 `baseUrl: gateway.v1` 的协议：MusePi 把 `/responses` 拼在 base URL 后，而 magpie 只在 `/v1/responses` 上服务；Chat 有 `/chat/completions` 根别名，Messages 由 MusePi 补 `/v1/messages`，两者都用根地址。
+
+`images` 为 true 时写 `input: ["text", "image"]`；为 false 时不写，让 MusePi 按模型 id 推断（magpie 的布尔只表示"已知能看图"，false 不代表不能）。**视频输入写不出来**：magpie 的 `catalog.Model.InputModalities` 里可能有 `video`（`zcodeInputs` 就是这么用的），但 `connect` 的模型事实只带 `images`；models.yml 的 `input` 一旦显式写出就覆盖 MusePi 的 id 推断，所以带视频的 id 只能等上游把 `input_modalities` 加进事实后再写全。
+
+`efforts` 是 magpie 的能力阶梯（`minimal`…`max`）。非 Anthropic 协议直接写成 `thinking: { mode: "effort", efforts }`（按 MusePi 的顺序过滤、去重）；Anthropic 只写 `reasoning: true`，因为 MusePi 会按模型 id 在 `anthropic-adaptive` / `anthropic-budget-effort` / `budget` 之间选择，插件钉死 mode 会覆盖这份更细的规则。任何未知 effort 都被丢弃：models.yml 是整文件校验，一个非法值会让 MusePi 停用全部自定义供应商。
+
+### own
+
+`own({ config, model })` 是 magpie 行内模型选择器要的"MusePi 自己的模型"：读 `models.yml`（`config` 就是解析后的它），把 `magpie` 之外的 provider 下的每个模型写成 `{ value: "<provider>/<id>", model: <id>, direct: <provider 的 label，否则 id> }`，按 value 排序。`direct` 让 magpie 标成"不经过 magpie、直连该 provider"；选中后 magpie 把值写进 `config.yml` 的 `modelRoles.default`（不带 `magpie/` 前缀），MusePi 用自己的 key 请求那个 provider。
+
+两个边界来自契约本身：
+
+- 插件只拿到 `models.yml`，看不到 MusePi 的 bundled 目录，所以登录态的内置 provider（Anthropic、Copilot…）不在列表里；MusePi 当前所选的模型若不在文件里，会被放在最前面当当前值（`pluggedOwn` 已把 `magpie/` 开头的当前值清空）。
+- `models.yml` 的 provider 没有 `label` 时用 id 当 vendor 名。`label` 是插件文档之外的 MusePi 字段（`providers.<id>.label`，只影响显示），magpie 写 provider 块时可以顺带写。
+
+MusePi 的完整可用清单不在插件契约里：`own` 只拿到 `config`（models.yml）与 `base`，而 `base` 只对 `launch` 型插件开放（`agentplug.Desc.check`），插件运行时也没有子进程/文件访问。MusePi 提供的机器可读接口是 `musepi models ls --json`（可用模型、`providerLabel`、能力与价格），magpie 的内置适配器可以运行命令/读文件（omp、OpenCode、dsh、Kimi Code 都是这么做的），但通用 JS 插件不行。要让 magpie 行里出现登录态的内置 provider，需要 magpie 侧新增内置适配器或把清单纳入插件契约，不是本插件单侧能解决的。
 
 ### 发布与"怎么让 magpie 搜到"
 

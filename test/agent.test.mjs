@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { agent, connect } from "../musepi.agent.js";
+import { agent, connect, own } from "../musepi.agent.js";
 
 test("agent names MusePi's own files", () => {
 	assert.equal(agent.id, "musepi");
@@ -34,6 +34,11 @@ test("the module exports connect", () => {
 	assert.equal(typeof connect, "function");
 });
 
+test("the module exports own, so the row can list MusePi's own models", () => {
+	assert.equal(typeof own, "function");
+	assert.deepEqual(own({ config: { providers: {} }, model: "" }), []);
+});
+
 test("the module imports only its own files (jsmod allows nothing else)", async () => {
 	const { readFile } = await import("node:fs/promises");
 	const src = await readFile(new URL("../musepi.agent.js", import.meta.url), "utf8");
@@ -49,7 +54,10 @@ test("the agent carries an icon magpie can show", () => {
 });
 
 test("the notice says what to do next and nothing more", () => {
-	assert.match(agent.notice, /new .*session/i);
+	// MusePi re-reads models.yml when its model menu opens; a build from before
+	// that reads it at session start, so the advice names both.
+	assert.match(agent.notice, /model menu/i);
+	assert.match(agent.notice, /new session/i);
 	// The folder caveat is a standing limitation; a toast carrying it reads as
 	// a failure on every model change.
 	assert.doesNotMatch(agent.notice, /XDG|PI_CONFIG_DIR|profile/i);
