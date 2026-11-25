@@ -1,7 +1,8 @@
 # magpie-agent-musepi
 
-MusePi ([musepi](https://github.com/)) as an agent on magpie's Agents page:
-pick one of magpie's models for it, and switch it off to put its config back.
+MusePi ([MuseLinn/MusePi](https://github.com/MuseLinn/MusePi)) as an agent on
+magpie's Agents page: pick one of magpie's models for it, and switch it off to
+put its config back.
 
 把 MusePi 加到 magpie 的 Agents 页：给它选 magpie 的模型，关掉即恢复原来的配置。
 
@@ -27,6 +28,14 @@ magpie edits two files under MusePi's default agent folder:
   and the thinking ladder magpie reports (`thinking.efforts` on Chat and
   Responses; Anthropic keeps `reasoning` alone so MusePi picks its own
   adaptive/budget shape);
+  - the provider also names its session to the gateway
+    (`compat.promptCacheSessionHeader: x-session-affinity`). A prompt cache
+    lives on one upstream, and magpie spreads requests across accounts: the
+    header is how it keeps a conversation on the account that already holds
+    its prefix. Without it magpie guesses the conversation from how it opens,
+    so two sessions that open alike share one guess and turns bounce between
+    accounts whose caches are cold — a real session read 8–13% of its prompt
+    from cache before this line and 80% after;
 - `~/.musepi/agent/config.yml` — `modelRoles.default`, the model a new
   session starts on, as `magpie/<provider>/<model>`.
 
@@ -54,11 +63,17 @@ only the model MusePi is currently on is carried as the current value.
   MusePi's files; magpie's `agent.config` is one fixed path, so it would
   write where MusePi does not look. Start MusePi on its default folder, or
   wait for the multi-folder support.
-- **Back up `modelRoles.default` before connecting (magpie 0.1.4295).**
-  Disconnecting removes that role instead of restoring it: magpie's
-  `connect.was` stash records a `model` key that a `startup` agent does not
-  have. The other roles are untouched. Verified 2026-11-17; see
-  `VERIFICATION.md`.
+- **`modelRoles.default` on an older magpie.** magpie 0.1.4295 (2026-11-17)
+  removed that role when a `startup` agent disconnected instead of putting the
+  user's own value back; keep a copy of the value if your magpie is that old.
+  Current magpie restores it (`startRestore` in `internal/agent/plugged.go`,
+  covered by `TestPluggedStartupOwnPickKept`); the other roles were never
+  touched.
+- **Needs a MusePi that accepts `compat.promptCacheSessionHeader`.** MusePi
+  0.7.7 and earlier validate `models.yml` exactly, so the unknown key fails
+  the whole file — every provider in it, not just `magpie` — and MusePi shows
+  none of them. Update MusePi, or delete that one line under
+  `providers.magpie.compat`; the only thing lost is the session pinning above.
 - **The model list is magpie's.** MusePi shows what magpie's catalog had
   when the agent last connected. Current MusePi re-reads `models.yml` when its
   model menu opens, so a re-connect shows up there; a build from before that
