@@ -1,6 +1,6 @@
 {
   "name": "@musepi/magpie-agent-musepi",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "MusePi as a magpie agent: pick one of magpie’s models for it on the Agents page",
   "type": "module",
   "files": [
