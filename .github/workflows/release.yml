@@ -18,14 +18,18 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
       - run: node --test "test/*.test.mjs"
-      # Publishes the version in package.json. Skipped while the repository has
-      # no NPM_TOKEN secret, so a fork or a tag pushed before the secret exists
-      # still gets its release.
+      # Publishes the version in package.json. Without an NPM_TOKEN secret the
+      # step says so and passes, so a fork, or a tag pushed before the secret
+      # exists, still gets its GitHub release.
       - name: Publish to npm
-        if: ${{ env.NODE_AUTH_TOKEN != '' }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN is not set; npm publish skipped."
+            exit 0
+          fi
+          npm publish --access public
       - name: Create the release
         if: startsWith(github.ref, 'refs/tags/')
         env:
