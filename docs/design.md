@@ -58,6 +58,9 @@ MusePi 的 agent 目录不是固定的 `~/.musepi/agent`，按优先级：
 
 - **`<agentDir>/models.yml`** —— `providers.<id>` 支持 `baseUrl`、`apiKey`、`api`、`headers`、`compat`、`auth`（`"apiKey" | "none" | "oauth"`）、`models[]`、`modelOverrides`、`disableStrictTools`、`discovery`、`transport`（`config/models-config-schema-bundle.ts:281-301`）。`auth: "none"` 是回环无密钥的路，但实测 magpie 总会给键，所以插件用 `apiKey`。
 - **`providers.magpie.compat.promptCacheSessionHeader = "x-session-affinity"`** —— 网关用它把一段会话钉在同一上游；MusePi 只在 provider 声明了头名时才发送会话的缓存键，所以这一条不写就等于放弃前缀缓存。
+  - magpie 侧依据：`sessionHeaders`（`internal/gateway/gateway.go:10922`）本身就含 `x-session-affinity`，`affinityID` 优先读它；内置 Pi 拿到的是 `compat.sendSessionAffinityHeaders`（`internal/agent/pi_protocol.go:68`），内置 omp 拿到的是同一个 `promptCacheSessionHeader`（`internal/agent/omp.go:796`）。两者是同一件事的两种客户端写法，插件的写法与 omp 同源。
+  - 没有这个头时 magpie 退化为 `conversationID`（对话开头的哈希）；对话开头一变，粘滞就换了上游。
+  - 覆盖范围：MusePi 只在 OpenAI 面发送它 —— Chat Completions（`getOpenAIPromptCacheKey`）与 Responses。`anthropic-messages` 的 `buildAnthropicHeaders` 不读这个 compat，所以插件为 `/v1/messages` 选的模型只有哈希兜底（Claude 的 OAuth 路径另有 `X-Claude-Code-Session-Id`，magpie 也认）。
 - **`<agentDir>/config.yml`** —— `MAIN_CONFIG_FILENAMES = ["config.yml", "config.yaml"]`（`dirs.ts:27`），写入目标是 `config.yml`，读取时 `config.yaml` 作为回退；`modelRoles` 是 `role → "provider/model"` 记录（`settings-schema.ts:756`、`settings.ts:1078` `getModelRole`）。
 - 两者都经 `ConfigFile.relocate()` 处理，会在 `models.yml` 不存在而 `models.json` 存在时做一次 JSON→YAML 迁移（`config-file.ts:178-195`）。插件只写 `.yml`，迁移由 MusePi 自己做。
 - **模型身份是 `provider/id`**，所以 magpie 的模型在 MusePi 侧显示为 `magpie/<provider>/<model>`。
