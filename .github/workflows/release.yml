@@ -18,6 +18,16 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
       - run: node --test "test/*.test.mjs"
+      # A tag must name the version it publishes, so npm and the GitHub
+      # release can never drift apart.
+      - name: Check the tag names this version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "tag $GITHUB_REF_NAME does not name package.json's $version"
+            exit 1
+          fi
       # Publishes the version in package.json. Without an NPM_TOKEN secret the
       # step says so and passes, so a fork, or a tag pushed before the secret
       # exists, still gets its GitHub release.
