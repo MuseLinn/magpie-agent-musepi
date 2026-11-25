@@ -261,7 +261,7 @@ Expected: FAIL — `out["providers.magpie"]` 为 `undefined`
 
 - [ ] **Step 3: 实现 `connect`**
 
-返回 `{ "providers.magpie": provider }`。`provider.baseUrl = gateway.url`；`provider.apiKey = gateway.key`（实测回环也非空，不要写 `auth`）。模型映射：`name` 缺省用 `id`；`context` → `contextWindow`，`output` → `maxTokens`（有值才写）；`pricing` 转成 `cost: { input, output, cacheRead, cacheWrite }`，缺失键补 0（有 `pricing` 才写）；`api` 从 `native_endpoints` 推导——含 `/v1/messages` → `anthropic-messages`，含 `/v1/responses` → `openai-responses`，否则 `openai-completions`。`models` 为空时整个键不出现。
+返回 `{ "providers.magpie": provider }`。`provider.baseUrl = gateway.url`；`provider.apiKey = gateway.key`（实测回环也非空，不要写 `auth`）；`provider.compat = { promptCacheSessionHeader: "x-session-affinity" }`（网关按这个头把一段会话钉在同一上游；缺了它，负载均衡会让前缀缓存读成接近零的命中率）。模型映射：`name` 缺省用 `id`；`context` → `contextWindow`，`output` → `maxTokens`（有值才写）；`pricing` 转成 `cost: { input, output, cacheRead, cacheWrite }`，缺失键补 0（有 `pricing` 才写）；`api` 从 `native_endpoints` 推导——含 `/v1/messages` → `anthropic-messages`，含 `/v1/responses` → `openai-responses`，否则 `openai-completions`。`models` 为空时整个键不出现。
 
 - [ ] **Step 4: 运行测试确认通过**
 

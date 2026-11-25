@@ -16,6 +16,15 @@ test("the gateway key is always written, loopback included", () => {
 	assert.equal(out["providers.magpie"].auth, undefined);
 });
 
+test("the provider names the header magpie pins a session by", () => {
+	// Without it MusePi sends no affinity and a load-balanced gateway serves
+	// each turn from whichever upstream it picks, so the prefix cache misses.
+	const out = connect({ gateway, models: [] });
+	assert.deepEqual(out["providers.magpie"].compat, {
+		promptCacheSessionHeader: "x-session-affinity",
+	});
+});
+
 test("a model keeps its id, name, window and price", () => {
 	const out = connect({
 		gateway,

@@ -123,7 +123,18 @@ export function own({ config, model }) {
 }
 
 export function connect({ gateway, models }) {
-	const provider = { baseUrl: gateway.url, apiKey: gateway.key };
+	// Prompt caching lives on the upstream that holds the prefix, and magpie
+	// load-balances across them. It pins a conversation by the client's
+	// session id in a header (its own omp agent descriptor asks for
+	// `x-session-affinity`); MusePi sends that header only when the provider
+	// says which one it is. Without this every turn can land on a different
+	// upstream and a prefix cache that works still reads as a near-zero hit
+	// rate.
+	const provider = {
+		baseUrl: gateway.url,
+		apiKey: gateway.key,
+		compat: { promptCacheSessionHeader: "x-session-affinity" },
+	};
 	const list = (models ?? []).map(model => {
 		const entry = { id: model.id, name: model.name ?? model.id };
 		if (model.context) entry.contextWindow = model.context;
