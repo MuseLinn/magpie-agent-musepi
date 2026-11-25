@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -16,7 +17,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
       - run: node --test "test/*.test.mjs"
       # A tag must name the version it publishes, so npm and the GitHub
       # release can never drift apart.
@@ -28,18 +28,19 @@ jobs:
             echo "tag $GITHUB_REF_NAME does not name package.json's $version"
             exit 1
           fi
-      # Publishes the version in package.json. Without an NPM_TOKEN secret the
-      # step says so and passes, so a fork, or a tag pushed before the secret
-      # exists, still gets its GitHub release.
+      # Trusted publishing over OIDC: npm matches this repository and workflow,
+      # so nothing is stored. NPM_TOKEN is only a fallback for a repository
+      # without a trusted publisher — bypass-2FA tokens stop publishing
+      # directly around January 2027. A fork has neither and is skipped.
       - name: Publish to npm
+        if: github.repository == 'MuseLinn/magpie-agent-musepi'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          if [ -z "$NODE_AUTH_TOKEN" ]; then
-            echo "NPM_TOKEN is not set; npm publish skipped."
-            exit 0
+          if [ -n "$NPM_TOKEN" ]; then
+            npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN"
           fi
-          npm publish --access public
+          npm publish --access public --provenance
       - name: Create the release
         if: startsWith(github.ref, 'refs/tags/')
         env:
